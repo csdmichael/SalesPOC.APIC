@@ -89,6 +89,28 @@ Write-Host "  Zip size: $($zipBytes.Length) bytes | Base64 length: $($base64.Len
 # ── Build and send import request ────────────────────────────────────────────
 
 $baseUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiCenter/services/$ServiceName"
+
+# ── Ensure analyzerConfig exists (create if not found) ───────────────────────
+
+$configUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName`?api-version=$ApiVersion"
+
+Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists..."
+$checkResult = az rest --method GET --url $configUrl 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Analyzer config not found. Creating '$AnalyzerConfigName'..."
+    $configBody = @{ properties = @{} } | ConvertTo-Json -Compress
+    $createResult = az rest --method PUT --url $configUrl --body $configBody --headers "Content-Type=application/json" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to create analyzer config: $createResult"
+        throw "Could not create analyzerConfig '$AnalyzerConfigName'"
+    }
+    Write-Host "Analyzer config '$AnalyzerConfigName' created."
+} else {
+    Write-Host "Analyzer config '$AnalyzerConfigName' already exists."
+}
+
+# ── Import ruleset ───────────────────────────────────────────────────────────
+
 $importUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName/importRuleset?api-version=$ApiVersion"
 
 $bodyObj = @{ format = "inline-zip"; value = $base64 }
