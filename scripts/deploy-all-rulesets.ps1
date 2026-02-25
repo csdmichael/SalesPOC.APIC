@@ -124,9 +124,64 @@ if ($rulesetDirs.Count -eq 0) {
     exit 0
 }
 
+# ── Resolve target config names ──────────────────────────────────────────────
+
+$targetConfigNames = @()
+foreach ($dir in $rulesetDirs) {
+    $cfgPath = Join-Path $dir.FullName "config.yaml"
+    $name = $dir.Name
+    if (Test-Path $cfgPath) {
+        $cfgContent = Get-Content $cfgPath -Raw
+        if ($cfgContent -match '(?m)^analyzerConfigName:\s*(\S+)') {
+            $name = $Matches[1].Trim()
+        }
+    }
+    $targetConfigNames += $name
+}
+
 Write-Host "Found $($rulesetDirs.Count) ruleset(s) to deploy:" -ForegroundColor Cyan
 $rulesetDirs | ForEach-Object { Write-Host "  - $($_.Name)" }
+Write-Host "Target analyzer configs: $($targetConfigNames -join ', ')" -ForegroundColor Cyan
 Write-Host ""
+
+# ── Auto-prune stale analyzer configs ────────────────────────────────────────
+# List existing configs and delete any NOT in the target set to free up slots.
+
+$apiVersion = "2024-06-01-preview"
+$baseUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiCenter/services/$ServiceName"
+$listUrl = "$baseUrl/workspaces/default/analyzerConfigs?api-version=$apiVersion"
+
+Write-Host "Checking for stale analyzer configs..." -ForegroundColor Cyan
+try {
+    $listResult = az rest --method GET --url $listUrl 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $configList = ($listResult | ConvertFrom-Json).value
+        $existingNames = $configList | ForEach-Object { $_.name }
+
+        $staleConfigs = $existingNames | Where-Object { $_ -notin $targetConfigNames }
+        if ($staleConfigs.Count -gt 0) {
+            Write-Host "Found $($staleConfigs.Count) stale config(s) to remove: $($staleConfigs -join ', ')" -ForegroundColor Yellow
+            foreach ($stale in $staleConfigs) {
+                $deleteUrl = "$baseUrl/workspaces/default/analyzerConfigs/$stale`?api-version=$apiVersion"
+                Write-Host "  Deleting '$stale'..."
+                $delResult = az rest --method DELETE --url $deleteUrl 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "  Deleted '$stale'." -ForegroundColor Green
+                } else {
+                    Write-Warning "  Failed to delete '$stale': $delResult"
+                }
+            }
+            Write-Host ""
+        } else {
+            Write-Host "No stale configs found." -ForegroundColor Green
+            Write-Host ""
+        }
+    } else {
+        Write-Warning "Could not list analyzer configs – skipping auto-prune."
+    }
+} catch {
+    Write-Warning "Error during auto-prune: $_ – continuing with deployment."
+}
 
 $failed = @()
 $succeeded = @()

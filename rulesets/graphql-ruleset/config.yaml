@@ -1,6 +1,6 @@
 # Ruleset metadata – used by deploy scripts to route by API type
 apiType: graphql                    # rest | graphql | mcp
-analyzerType: spectral              # analyzer engine used by API Center
+analyzerType: custom                # analyzer engine used by API Center
 analyzerConfigName: graphql-ruleset # Azure API Center analyzer config name
 description: >
   Governance rules for GraphQL APIs.

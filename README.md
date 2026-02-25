@@ -63,10 +63,11 @@ When you push changes to `rulesets/**` on the `main` branch, the GitHub Actions 
 2. Discovers all ruleset subdirectories under `rulesets/` (each subfolder containing a `ruleset.yaml` or `ruleset.yml`)
 3. Reads **`config.yaml`** in each directory to determine `apiType` and `analyzerType`
 4. Optionally filters rulesets by API type (when triggered manually with an `api_type` input)
-5. For each matching ruleset, packages it (and any `functions/` folder) into a zip
-6. Base64-encodes the zip
-7. Ensures the analyzer config exists with the correct analyzer type
-8. Calls the API Center `importRuleset` REST API to deploy it
+5. **Auto-prunes stale analyzer configs** – lists existing configs in Azure and deletes any that are not in the current deployment set, freeing slots within the tier limit
+6. For each matching ruleset, packages it (and any `functions/` folder) into a zip
+7. Base64-encodes the zip
+8. Ensures the analyzer config exists with the correct analyzer type
+9. Calls the API Center `importRuleset` REST API to deploy it
 
 The `analyzerConfigName` in config.yaml maps each directory to its Azure API Center
 target (e.g., `rest-default/` deploys to the `rest-ruleset` config, `graphql-ruleset/`
