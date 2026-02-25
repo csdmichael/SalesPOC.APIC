@@ -155,10 +155,37 @@ $baseUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceG
 
 $configUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName`?api-version=$ApiVersion"
 
-Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists..."
-$checkResult = az rest --method GET --url $configUrl 2>&1
+Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists with analyzerType='$analyzerType'..."
+$needsCreate = $false
+$checkResult = az rest --method GET --url $configUrl -o json 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Analyzer config not found. Creating '$AnalyzerConfigName'..."
+    $needsCreate = $true
+} else {
+    # Config exists – verify the analyzerType matches
+    try {
+        $existing = $checkResult | ConvertFrom-Json
+        $existingType = $existing.properties.analyzerType
+        Write-Host "  Existing analyzer config type: $existingType"
+        if ($existingType -ne $analyzerType) {
+            Write-Host "  Type mismatch: existing='$existingType', desired='$analyzerType'. Deleting and recreating..." -ForegroundColor Yellow
+            $deleteResult = az rest --method DELETE --url $configUrl 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Failed to delete existing config: $deleteResult"
+            } else {
+                Write-Host "  Deleted existing config '$AnalyzerConfigName'."
+                Start-Sleep -Seconds 5
+            }
+            $needsCreate = $true
+        } else {
+            Write-Host "  Analyzer config '$AnalyzerConfigName' already exists with correct type."
+        }
+    } catch {
+        Write-Warning "Could not parse existing config response. Proceeding with import."
+    }
+}
+
+if ($needsCreate) {
+    Write-Host "Creating analyzer config '$AnalyzerConfigName' with type '$analyzerType'..."
     $configBody = @{ properties = @{ analyzerType = $analyzerType } } | ConvertTo-Json -Compress
     $createResult = az rest --method PUT --url $configUrl --body $configBody --headers "Content-Type=application/json" 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -166,8 +193,6 @@ if ($LASTEXITCODE -ne 0) {
         throw "Could not create analyzerConfig '$AnalyzerConfigName'"
     }
     Write-Host "Analyzer config '$AnalyzerConfigName' created."
-} else {
-    Write-Host "Analyzer config '$AnalyzerConfigName' already exists."
 }
 
 # ── Import ruleset ───────────────────────────────────────────────────────────
@@ -192,7 +217,9 @@ Write-Host "Import completed successfully."
 
 # ── Verify deployment ────────────────────────────────────────────────────────
 
-Write-Host "Verifying deployment..."
+Write-Host "Verifying deployment (waiting 5s for propagation)..."
+Start-Sleep -Seconds 5
+
 $exportUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName/exportRuleset?api-version=$ApiVersion"
 $exportResult = az rest --method POST --url $exportUrl --headers "Content-Type=application/json" -o json 2>&1
 
@@ -203,6 +230,42 @@ if ($LASTEXITCODE -ne 0) {
 } else {
     $export = $exportResult | ConvertFrom-Json
     Write-Host "Verification: Exported format = $($export.format), value length = $($export.value.Length)"
+
+    # Decode and show the first lines of the exported ruleset
+    try {
+        $exportedZipBytes = [System.Convert]::FromBase64String($export.value)
+        $exportedZipPath = Join-Path ([System.IO.Path]::GetTempPath()) "$AnalyzerConfigName-export-verify.zip"
+        [System.IO.File]::WriteAllBytes($exportedZipPath, $exportedZipBytes)
+        $expandDir = Join-Path ([System.IO.Path]::GetTempPath()) "$AnalyzerConfigName-export-verify"
+        if (Test-Path $expandDir) { Remove-Item $expandDir -Recurse -Force }
+        Expand-Archive -Path $exportedZipPath -DestinationPath $expandDir -Force
+
+        $exportedRuleset = Get-ChildItem -Path $expandDir -Filter "ruleset.*" -Recurse | Select-Object -First 1
+        if ($exportedRuleset) {
+            $exportedContent = Get-Content $exportedRuleset.FullName -Raw
+            Write-Host "`n--- Exported ruleset preview (first 10 lines) ---"
+            ($exportedContent -split "`n" | Select-Object -First 10) | ForEach-Object { Write-Host "  $_" }
+            Write-Host "--- end preview ---`n"
+
+            # Compare with source
+            $sourceContent = Get-Content $rulesetFile -Raw
+            if ($exportedContent.Trim() -eq $sourceContent.Trim()) {
+                Write-Host "Deployment verified: exported content matches source." -ForegroundColor Green
+            } else {
+                Write-Warning "Exported content does NOT match source ruleset! Import may not have applied correctly."
+                Write-Host "  Source lines: $(($sourceContent -split "`n").Count) | Exported lines: $(($exportedContent -split "`n").Count)"
+            }
+        } else {
+            Write-Warning "No ruleset file found in exported zip."
+        }
+
+        # Cleanup temp files
+        Remove-Item $exportedZipPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $expandDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Warning "Could not decode exported ruleset for verification: $_"
+    }
+
     Write-Host "Deployment verified successfully."
 }
 
