@@ -1,0 +1,6 @@
+# Ruleset metadata – used by deploy scripts to route by API type
+apiType: rest                   # rest | graphql | mcp
+analyzerType: spectral          # analyzer engine used by API Center
+description: >
+  Full REST/OpenAPI governance – inlined Spectral OAS rules plus custom
+  security-controls checks (rate limiting, input validation, error handling).

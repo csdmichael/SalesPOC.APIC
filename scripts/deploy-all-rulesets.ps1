@@ -7,6 +7,9 @@
     then calls deploy-ruleset.ps1 for each one. The subdirectory name is used as the
     analyzerConfig name.
 
+    When ApiType is specified, only rulesets whose config.yaml declares a matching
+    apiType are deployed (rest, graphql, or mcp).
+
 .PARAMETER SubscriptionId
     Azure subscription ID containing the API Center service.
 
@@ -19,6 +22,11 @@
 .PARAMETER RulesetsRoot
     Path to the root directory containing ruleset subdirectories.
     Defaults to "./rulesets".
+
+.PARAMETER ApiType
+    Optional API type filter. When set, only rulesets whose config.yaml
+    declares a matching apiType are deployed. Accepted values: rest, graphql, mcp.
+    When omitted, all discovered rulesets are deployed.
 #>
 
 [CmdletBinding()]
@@ -33,7 +41,11 @@ param(
     [string]$ServiceName,
 
     [Parameter(Mandatory = $false)]
-    [string]$RulesetsRoot = "./rulesets"
+    [string]$RulesetsRoot = "./rulesets",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("rest", "graphql", "mcp", "")]
+    [string]$ApiType
 )
 
 Set-StrictMode -Version Latest
@@ -56,8 +68,27 @@ $rulesetDirs = Get-ChildItem -Path $RulesetsRoot -Directory | Where-Object {
     (Test-Path (Join-Path $_.FullName "ruleset.yml"))
 }
 
+# ── Filter by API type (if specified) ────────────────────────────────────────
+
+if ($ApiType) {
+    Write-Host "Filtering rulesets for API type: $ApiType" -ForegroundColor Cyan
+
+    $rulesetDirs = $rulesetDirs | Where-Object {
+        $cfgPath = Join-Path $_.FullName "config.yaml"
+        if (Test-Path $cfgPath) {
+            $cfgContent = Get-Content $cfgPath -Raw
+            if ($cfgContent -match '(?m)^apiType:\s*(\S+)') {
+                return ($Matches[1].Trim() -eq $ApiType)
+            }
+        }
+        # No config.yaml or no apiType field – include only when no filter or rest
+        return ($ApiType -eq "rest")
+    }
+}
+
 if ($rulesetDirs.Count -eq 0) {
-    Write-Warning "No ruleset directories found under $RulesetsRoot"
+    $filterMsg = if ($ApiType) { " matching apiType='$ApiType'" } else { "" }
+    Write-Warning "No ruleset directories found under $RulesetsRoot$filterMsg"
     exit 0
 }
 
@@ -75,12 +106,18 @@ foreach ($dir in $rulesetDirs) {
     Write-Host "========================================" -ForegroundColor Cyan
 
     try {
-        & $deploySingleScript `
-            -SubscriptionId $SubscriptionId `
-            -ResourceGroup $ResourceGroup `
-            -ServiceName $ServiceName `
-            -AnalyzerConfigName $configName `
-            -RulesetPath $dir.FullName
+        $deployParams = @{
+            SubscriptionId     = $SubscriptionId
+            ResourceGroup      = $ResourceGroup
+            ServiceName        = $ServiceName
+            AnalyzerConfigName = $configName
+            RulesetPath        = $dir.FullName
+        }
+        if ($ApiType) {
+            $deployParams["ApiType"] = $ApiType
+        }
+
+        & $deploySingleScript @deployParams
 
         $succeeded += $configName
         Write-Host "[$configName] Deployed successfully.`n" -ForegroundColor Green

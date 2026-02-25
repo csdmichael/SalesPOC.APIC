@@ -1,0 +1,8 @@
+# Ruleset metadata – used by deploy scripts to route by API type
+apiType: mcp                    # rest | graphql | mcp
+analyzerType: spectral          # analyzer engine used by API Center
+description: >
+  Governance rules for Model Context Protocol (MCP) APIs.
+  Validates tool/resource/prompt definitions, transport security,
+  capability declarations, and security controls expressed via
+  x-mcp-meta and x-security-controls extensions.

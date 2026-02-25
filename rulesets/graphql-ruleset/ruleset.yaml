@@ -1,0 +1,175 @@
+rules:
+
+  # ── GraphQL schema hygiene ────────────────────────────────────────────────
+
+  graphql-schema-description:
+    description: The GraphQL schema document must include a top-level description.
+    message: Add a top-level 'description' field to the schema document.
+    severity: warn
+    given: $
+    then:
+      field: description
+      function: truthy
+
+  graphql-query-type-defined:
+    description: A Query root type must be defined.
+    message: Schema must define a Query type.
+    severity: error
+    given: $
+    then:
+      field: query
+      function: truthy
+
+  graphql-schema-version:
+    description: Schema should declare a version in x-graphql-meta.
+    message: Add x-graphql-meta.version to track schema versioning.
+    severity: warn
+    given: $
+    then:
+      field: x-graphql-meta.version
+      function: truthy
+
+  # ── Query depth & complexity controls ─────────────────────────────────────
+
+  graphql-max-query-depth:
+    description: Maximum query depth must be configured to prevent deeply nested attacks.
+    message: Set x-graphql-meta.queryDepthLimit to a positive integer.
+    severity: error
+    given: $.x-graphql-meta
+    then:
+      field: queryDepthLimit
+      function: schema
+      functionOptions:
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+
+  graphql-max-query-complexity:
+    description: Maximum query complexity must be set.
+    message: Set x-graphql-meta.queryComplexityLimit to a positive integer.
+    severity: error
+    given: $.x-graphql-meta
+    then:
+      field: queryComplexityLimit
+      function: schema
+      functionOptions:
+        schema:
+          type: integer
+          minimum: 1
+
+  graphql-introspection-disabled-production:
+    description: Introspection should be disabled in production environments.
+    message: Set x-graphql-meta.introspection to false for production.
+    severity: warn
+    given: $.x-graphql-meta
+    then:
+      field: introspection
+      function: schema
+      functionOptions:
+        schema:
+          type: boolean
+          const: false
+
+  graphql-batch-query-limit:
+    description: Batch/query aliasing limits must be set to prevent batching attacks.
+    message: Set x-graphql-meta.batchQueryLimit to a value between 1 and 50.
+    severity: error
+    given: $.x-graphql-meta
+    then:
+      field: batchQueryLimit
+      function: schema
+      functionOptions:
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+
+  # ── Pagination ────────────────────────────────────────────────────────────
+
+  graphql-pagination-required:
+    description: List fields should use cursor-based pagination.
+    message: Set x-graphql-meta.paginationStyle to 'cursor' (Relay-style recommended).
+    severity: warn
+    given: $.x-graphql-meta
+    then:
+      field: paginationStyle
+      function: pattern
+      functionOptions:
+        match: "^(cursor|offset)$"
+
+  # ── Security controls (shared contract) ───────────────────────────────────
+
+  graphql-require-security-controls:
+    description: GraphQL APIs must declare security control settings in x-security-controls.
+    message: Define x-security-controls with rateLimiting, inputValidation, and errorHandling sections.
+    severity: error
+    given: $
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required:
+            - x-security-controls
+          properties:
+            x-security-controls:
+              type: object
+              required:
+                - rateLimiting
+                - inputValidation
+                - errorHandling
+
+  graphql-rate-limiting-per-operation:
+    description: Rate limiting should be applied per operation/query.
+    message: Set x-security-controls.rateLimiting.perOperationLimits to true.
+    severity: error
+    given: $.x-security-controls.rateLimiting
+    then:
+      field: perOperationLimits
+      function: truthy
+
+  graphql-cost-analysis-enabled:
+    description: Query cost analysis must be enabled to prevent expensive queries.
+    message: Set x-security-controls.rateLimiting.costAnalysis to true.
+    severity: error
+    given: $.x-security-controls.rateLimiting
+    then:
+      field: costAnalysis
+      function: truthy
+
+  graphql-persisted-queries:
+    description: Persisted/allowlisted queries should be enabled in production.
+    message: Set x-security-controls.inputValidation.persistedQueries to true.
+    severity: warn
+    given: $.x-security-controls.inputValidation
+    then:
+      field: persistedQueries
+      function: truthy
+
+  graphql-field-level-auth:
+    description: Field-level authorization should be enforced.
+    message: Set x-security-controls.inputValidation.fieldLevelAuthorization to true.
+    severity: error
+    given: $.x-security-controls.inputValidation
+    then:
+      field: fieldLevelAuthorization
+      function: truthy
+
+  graphql-generic-external-errors:
+    description: External error messages must be generic (no stack traces).
+    message: Set x-security-controls.errorHandling.genericExternalErrors to true.
+    severity: error
+    given: $.x-security-controls.errorHandling
+    then:
+      field: genericExternalErrors
+      function: truthy
+
+  graphql-error-masking:
+    description: Internal error details must be masked in responses.
+    message: Set x-security-controls.errorHandling.errorMasking to true.
+    severity: error
+    given: $.x-security-controls.errorHandling
+    then:
+      field: errorMasking
+      function: truthy

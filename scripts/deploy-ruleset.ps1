@@ -1,11 +1,15 @@
 <#
 .SYNOPSIS
-    Deploys a Spectral ruleset to Azure API Center analyzerConfig via the importRuleset action.
+    Deploys a ruleset to Azure API Center analyzerConfig via the importRuleset action.
 
 .DESCRIPTION
     This script packages the ruleset directory (ruleset.yaml + any functions/) into a zip,
     base64-encodes it, and imports it into the specified API Center analyzer configuration
     using the Azure REST API.
+
+    If the ruleset directory contains a config.yaml with an apiType field
+    (rest, graphql, or mcp), the script reads the analyzerType from that config.
+    Otherwise it defaults to "spectral".
 
 .PARAMETER SubscriptionId
     Azure subscription ID containing the API Center service.
@@ -21,6 +25,11 @@
 
 .PARAMETER RulesetPath
     Path to the directory containing ruleset.yaml (and optionally a functions/ folder).
+
+.PARAMETER ApiType
+    Optional API type filter. When supplied the script validates that the
+    ruleset's config.yaml declares a matching apiType. Accepted values:
+    rest, graphql, mcp.
 
 .PARAMETER ApiVersion
     ARM API version. Defaults to 2024-06-01-preview.
@@ -44,6 +53,10 @@ param(
     [string]$RulesetPath,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("rest", "graphql", "mcp")]
+    [string]$ApiType,
+
+    [Parameter(Mandatory = $false)]
     [string]$ApiVersion = "2024-06-01-preview"
 )
 
@@ -65,6 +78,45 @@ if (-not (Test-Path $rulesetFile)) {
         throw "No ruleset.yaml or ruleset.yml found in $rulesetDir"
     }
 }
+
+# ── Read config.yaml for API type & analyzer type ────────────────────────────
+
+$configFile = Join-Path $rulesetDir "config.yaml"
+$configApiType = $null
+$analyzerType = "spectral"   # default
+
+if (Test-Path $configFile) {
+    Write-Host "Reading ruleset config from: $configFile"
+    $configLines = Get-Content $configFile -Raw
+
+    # Parse apiType (simple YAML key: value)
+    if ($configLines -match '(?m)^apiType:\s*(\S+)') {
+        $configApiType = $Matches[1].Trim()
+        Write-Host "  Detected API type : $configApiType"
+    }
+
+    # Parse analyzerType
+    if ($configLines -match '(?m)^analyzerType:\s*(\S+)') {
+        $analyzerType = $Matches[1].Trim()
+        Write-Host "  Analyzer type     : $analyzerType"
+    }
+} else {
+    Write-Host "No config.yaml found in $rulesetDir – defaulting to analyzerType='spectral'."
+}
+
+# Validate API type filter if provided
+if ($ApiType) {
+    if (-not $configApiType) {
+        throw "ApiType filter '$ApiType' was specified but the ruleset at $rulesetDir has no config.yaml with an apiType field."
+    }
+    if ($configApiType -ne $ApiType) {
+        Write-Host "Skipping '$AnalyzerConfigName' – apiType '$configApiType' does not match filter '$ApiType'." -ForegroundColor Yellow
+        return
+    }
+}
+
+Write-Host "Deploying ruleset for API type: $( if ($configApiType) { $configApiType } else { '(unspecified – REST assumed)' } )"
+Write-Host "  Analyzer type: $analyzerType"
 
 # ── Build zip package ────────────────────────────────────────────────────────
 
@@ -98,7 +150,7 @@ Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists..."
 $checkResult = az rest --method GET --url $configUrl 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Analyzer config not found. Creating '$AnalyzerConfigName'..."
-    $configBody = @{ properties = @{ analyzerType = "spectral" } } | ConvertTo-Json -Compress
+    $configBody = @{ properties = @{ analyzerType = $analyzerType } } | ConvertTo-Json -Compress
     $createResult = az rest --method PUT --url $configUrl --body $configBody --headers "Content-Type=application/json" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create analyzer config: $createResult"

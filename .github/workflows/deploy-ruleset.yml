@@ -1,4 +1,4 @@
-name: Deploy All Rulesets to API Center
+name: Deploy Rulesets to API Center
 
 on:
   push:
@@ -8,6 +8,17 @@ on:
       - 'scripts/deploy-ruleset.ps1'
       - 'scripts/deploy-all-rulesets.ps1'
   workflow_dispatch:
+    inputs:
+      api_type:
+        description: >
+          API type to deploy rulesets for. Leave empty to deploy all.
+        required: false
+        type: choice
+        options:
+          - ''
+          - rest
+          - graphql
+          - mcp
 
 permissions:
   id-token: write   # Required for Azure OIDC login
@@ -20,7 +31,7 @@ env:
 
 jobs:
   deploy-rulesets:
-    name: Deploy All Rulesets
+    name: Deploy Rulesets${{ inputs.api_type && format(' ({0})', inputs.api_type) || '' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -34,11 +45,22 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy all rulesets to API Center
+      - name: Deploy rulesets to API Center
         shell: pwsh
         run: |
-          ./scripts/deploy-all-rulesets.ps1 `
-            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
-            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
-            -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
-            -RulesetsRoot "./rulesets"
+          $params = @{
+            SubscriptionId = "${{ env.AZURE_SUBSCRIPTION_ID }}"
+            ResourceGroup  = "${{ env.AZURE_RESOURCE_GROUP }}"
+            ServiceName    = "${{ env.API_CENTER_SERVICE_NAME }}"
+            RulesetsRoot   = "./rulesets"
+          }
+
+          $apiType = "${{ inputs.api_type }}"
+          if ($apiType) {
+            Write-Host "Deploying rulesets for API type: $apiType"
+            $params["ApiType"] = $apiType
+          } else {
+            Write-Host "Deploying all rulesets (no API type filter)"
+          }
+
+          ./scripts/deploy-all-rulesets.ps1 @params

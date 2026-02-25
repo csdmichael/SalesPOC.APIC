@@ -1,0 +1,261 @@
+rules:
+
+  # ── MCP manifest / capability rules ───────────────────────────────────────
+
+  mcp-protocol-version-defined:
+    description: MCP spec must declare the protocol version.
+    message: Add a top-level 'protocolVersion' field (e.g., "2025-03-26").
+    severity: error
+    given: $
+    then:
+      field: protocolVersion
+      function: truthy
+
+  mcp-server-name-defined:
+    description: MCP server must have a name.
+    message: Add serverInfo.name to identify the MCP server.
+    severity: error
+    given: $
+    then:
+      field: serverInfo.name
+      function: truthy
+
+  mcp-server-version-defined:
+    description: MCP server must declare its version.
+    message: Add serverInfo.version to the server manifest.
+    severity: error
+    given: $
+    then:
+      field: serverInfo.version
+      function: truthy
+
+  mcp-capabilities-declared:
+    description: MCP server must declare its capabilities.
+    message: Add a top-level 'capabilities' object listing supported features (tools, resources, prompts).
+    severity: error
+    given: $
+    then:
+      field: capabilities
+      function: truthy
+
+  mcp-description-present:
+    description: MCP server should have a human-readable description.
+    message: Add a top-level 'description' field for this MCP server.
+    severity: warn
+    given: $
+    then:
+      field: description
+      function: truthy
+
+  # ── Tool definitions ──────────────────────────────────────────────────────
+
+  mcp-tool-name-required:
+    description: Every MCP tool must have a name.
+    message: Each tool in capabilities.tools must have a 'name' field.
+    severity: error
+    given: $.capabilities.tools[*]
+    then:
+      field: name
+      function: truthy
+
+  mcp-tool-description-required:
+    description: Every MCP tool must have a description.
+    message: Each tool must have a 'description' for LLM discoverbility.
+    severity: error
+    given: $.capabilities.tools[*]
+    then:
+      field: description
+      function: truthy
+
+  mcp-tool-input-schema-required:
+    description: Every MCP tool must define an inputSchema for its parameters.
+    message: Each tool must have an 'inputSchema' with a JSON Schema definition.
+    severity: error
+    given: $.capabilities.tools[*]
+    then:
+      field: inputSchema
+      function: truthy
+
+  mcp-tool-annotations-present:
+    description: Tools should include annotations (readOnlyHint, destructiveHint, etc.).
+    message: Add 'annotations' to each tool to communicate side-effect behavior.
+    severity: warn
+    given: $.capabilities.tools[*]
+    then:
+      field: annotations
+      function: truthy
+
+  # ── Resource definitions ──────────────────────────────────────────────────
+
+  mcp-resource-uri-required:
+    description: Every MCP resource must have a URI.
+    message: Each resource in capabilities.resources must have a 'uri' field.
+    severity: error
+    given: $.capabilities.resources[*]
+    then:
+      field: uri
+      function: truthy
+
+  mcp-resource-name-required:
+    description: Every MCP resource must have a name.
+    message: Each resource must have a 'name' field.
+    severity: error
+    given: $.capabilities.resources[*]
+    then:
+      field: name
+      function: truthy
+
+  mcp-resource-description-required:
+    description: Every MCP resource should have a description.
+    message: Add a 'description' to each resource for discoverability.
+    severity: warn
+    given: $.capabilities.resources[*]
+    then:
+      field: description
+      function: truthy
+
+  mcp-resource-mimetype-required:
+    description: Every MCP resource should declare its MIME type.
+    message: Add a 'mimeType' to each resource (e.g., application/json, text/plain).
+    severity: warn
+    given: $.capabilities.resources[*]
+    then:
+      field: mimeType
+      function: truthy
+
+  # ── Prompt definitions ────────────────────────────────────────────────────
+
+  mcp-prompt-name-required:
+    description: Every MCP prompt must have a name.
+    message: Each prompt in capabilities.prompts must have a 'name' field.
+    severity: error
+    given: $.capabilities.prompts[*]
+    then:
+      field: name
+      function: truthy
+
+  mcp-prompt-description-required:
+    description: Every MCP prompt must have a description.
+    message: Each prompt must have a 'description' for LLM discoverability.
+    severity: error
+    given: $.capabilities.prompts[*]
+    then:
+      field: description
+      function: truthy
+
+  # ── Transport & security ──────────────────────────────────────────────────
+
+  mcp-transport-type-defined:
+    description: MCP server must declare its transport type.
+    message: Set x-mcp-meta.transport to 'streamable-http' or 'stdio'.
+    severity: error
+    given: $
+    then:
+      field: x-mcp-meta.transport
+      function: pattern
+      functionOptions:
+        match: "^(streamable-http|stdio|sse)$"
+
+  mcp-auth-mechanism-defined:
+    description: MCP server must declare its authentication mechanism.
+    message: Set x-mcp-meta.authentication to specify the auth method (e.g., oauth2, api-key, none).
+    severity: error
+    given: $.x-mcp-meta
+    then:
+      field: authentication
+      function: truthy
+
+  mcp-tls-required-for-http:
+    description: HTTP-based MCP transports must use TLS.
+    message: Set x-mcp-meta.tlsRequired to true for HTTP-based transports.
+    severity: error
+    given: $.x-mcp-meta
+    then:
+      field: tlsRequired
+      function: truthy
+
+  mcp-human-in-the-loop:
+    description: >
+      Destructive or sensitive tools should require human confirmation.
+    message: Set x-mcp-meta.humanInTheLoop to true or define per-tool confirmation policies.
+    severity: warn
+    given: $.x-mcp-meta
+    then:
+      field: humanInTheLoop
+      function: truthy
+
+  # ── Security controls (shared contract) ───────────────────────────────────
+
+  mcp-require-security-controls:
+    description: MCP APIs must declare security control settings in x-security-controls.
+    message: Define x-security-controls with rateLimiting, inputValidation, and errorHandling sections.
+    severity: error
+    given: $
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required:
+            - x-security-controls
+          properties:
+            x-security-controls:
+              type: object
+              required:
+                - rateLimiting
+                - inputValidation
+                - errorHandling
+
+  mcp-rate-limiting-per-tool:
+    description: Rate limiting should be applied per tool invocation.
+    message: Set x-security-controls.rateLimiting.perToolLimits to true.
+    severity: error
+    given: $.x-security-controls.rateLimiting
+    then:
+      field: perToolLimits
+      function: truthy
+
+  mcp-input-schema-validation:
+    description: Tool input must be validated against its declared inputSchema.
+    message: Set x-security-controls.inputValidation.schemaValidation to true.
+    severity: error
+    given: $.x-security-controls.inputValidation
+    then:
+      field: schemaValidation
+      function: truthy
+
+  mcp-prompt-injection-protection:
+    description: Prompt injection protection must be enabled.
+    message: Set x-security-controls.inputValidation.promptInjectionProtection to true.
+    severity: error
+    given: $.x-security-controls.inputValidation
+    then:
+      field: promptInjectionProtection
+      function: truthy
+
+  mcp-tool-poisoning-protection:
+    description: Tool-description poisoning detection should be enabled.
+    message: Set x-security-controls.inputValidation.toolPoisoningDetection to true.
+    severity: warn
+    given: $.x-security-controls.inputValidation
+    then:
+      field: toolPoisoningDetection
+      function: truthy
+
+  mcp-generic-external-errors:
+    description: External error messages must be generic (no internal details).
+    message: Set x-security-controls.errorHandling.genericExternalErrors to true.
+    severity: error
+    given: $.x-security-controls.errorHandling
+    then:
+      field: genericExternalErrors
+      function: truthy
+
+  mcp-structured-logging:
+    description: Structured logging must be enabled for audit trails.
+    message: Set x-security-controls.errorHandling.structuredLogging to true.
+    severity: error
+    given: $.x-security-controls.errorHandling
+    then:
+      field: structuredLogging
+      function: truthy

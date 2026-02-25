@@ -1,33 +1,60 @@
 # API Center Custom Rulesets
 
 Spectral rulesets for API governance in Azure API Center (`api-center-poc-my`).
+Supports **REST / OpenAPI**, **GraphQL**, and **MCP** (Model Context Protocol) APIs with
+type-specific rules selected automatically via `config.yaml` metadata.
 
 ## Structure
 
 ```
 ├── .github/workflows/
-│   └── deploy-ruleset.yml          # GitHub Actions workflow for auto-deployment
+│   └── deploy-ruleset.yml              # GitHub Actions workflow for auto-deployment
 ├── rulesets/
-│   ├── custom-ruleset/
-│   │   └── ruleset.yaml            # Spectral ruleset
-│   └── custom-ruleset-no-spectral/
-│       └── ruleset.yaml            # Non-Spectral ruleset
+│   ├── custom-ruleset/                 # REST – full Spectral OAS + security controls
+│   │   ├── config.yaml                 #   apiType: rest
+│   │   └── ruleset.yaml
+│   ├── custom-ruleset-no-spectral/     # REST – security controls only
+│   │   ├── config.yaml                 #   apiType: rest
+│   │   └── ruleset.yaml
+│   ├── graphql-ruleset/                # GraphQL – schema hygiene + security
+│   │   ├── config.yaml                 #   apiType: graphql
+│   │   └── ruleset.yaml
+│   └── mcp-ruleset/                    # MCP – tool/resource/prompt governance
+│       ├── config.yaml                 #   apiType: mcp
+│       └── ruleset.yaml
 ├── scripts/
-│   ├── deploy-all-rulesets.ps1     # Deploys all rulesets
-│   └── deploy-ruleset.ps1          # Deploys a single ruleset
+│   ├── deploy-all-rulesets.ps1         # Deploys all (or filtered) rulesets
+│   └── deploy-ruleset.ps1             # Deploys a single ruleset
 └── README.md
 ```
+
+## API Type Routing
+
+Each ruleset directory contains a **`config.yaml`** that declares its API type and
+analyzer engine:
+
+```yaml
+apiType: rest          # rest | graphql | mcp
+analyzerType: spectral # analyzer engine used by API Center
+```
+
+The deploy scripts read this file to:
+- **Filter** – deploy only rulesets matching a given API type (`-ApiType` parameter)
+- **Configure** – create the Azure API Center analyzer config with the correct engine
 
 ## How It Works
 
 When you push changes to `rulesets/**` on the `main` branch, the GitHub Actions workflow automatically:
 
 1. Discovers all ruleset subdirectories under `rulesets/` (each subfolder containing a `ruleset.yaml` or `ruleset.yml`)
-2. For each ruleset, packages it (and any `functions/` folder) into a zip
-3. Base64-encodes the zip
-4. Calls the API Center `importRuleset` REST API to deploy it
+2. Reads **`config.yaml`** in each directory to determine `apiType` and `analyzerType`
+3. Optionally filters rulesets by API type (when triggered manually with an `api_type` input)
+4. For each matching ruleset, packages it (and any `functions/` folder) into a zip
+5. Base64-encodes the zip
+6. Ensures the analyzer config exists with the correct analyzer type
+7. Calls the API Center `importRuleset` REST API to deploy it
 
-The subdirectory name is used as the analyzer configuration name (e.g., `custom-ruleset`, `custom-ruleset-no-spectral`).
+The subdirectory name is used as the analyzer configuration name (e.g., `custom-ruleset`, `graphql-ruleset`, `mcp-ruleset`).
 
 ## Setup
 
@@ -92,6 +119,31 @@ You can deploy all rulesets locally:
   -RulesetsRoot "./rulesets"
 ```
 
+Deploy only rulesets for a specific API type:
+
+```powershell
+# Deploy REST rulesets only
+./scripts/deploy-all-rulesets.ps1 `
+  -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
+  -ResourceGroup "ai-myaacoub" `
+  -ServiceName "api-center-poc-my" `
+  -ApiType "rest"
+
+# Deploy GraphQL rulesets only
+./scripts/deploy-all-rulesets.ps1 `
+  -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
+  -ResourceGroup "ai-myaacoub" `
+  -ServiceName "api-center-poc-my" `
+  -ApiType "graphql"
+
+# Deploy MCP rulesets only
+./scripts/deploy-all-rulesets.ps1 `
+  -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
+  -ResourceGroup "ai-myaacoub" `
+  -ServiceName "api-center-poc-my" `
+  -ApiType "mcp"
+```
+
 Or deploy a single ruleset:
 
 ```powershell
@@ -106,3 +158,14 @@ Or deploy a single ruleset:
 ## Manual Trigger
 
 You can also trigger the workflow manually from the GitHub Actions tab using the **Run workflow** button.
+Select an **API type** (`rest`, `graphql`, or `mcp`) to deploy only matching rulesets, or leave it
+empty to deploy all rulesets.
+
+## Rulesets by API Type
+
+| API Type  | Ruleset Directory              | Key Rules                                                       |
+|-----------|--------------------------------|-----------------------------------------------------------------|
+| REST      | `custom-ruleset`               | Spectral OAS linting + `x-security-controls` enforcement        |
+| REST      | `custom-ruleset-no-spectral`   | `x-security-controls` only (no OAS linting)                     |
+| GraphQL   | `graphql-ruleset`              | Schema hygiene, depth/complexity limits, `x-security-controls`  |
+| MCP       | `mcp-ruleset`                  | Tool/resource/prompt governance, transport security, prompt injection protection |

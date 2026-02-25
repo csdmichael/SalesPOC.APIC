@@ -1,0 +1,7 @@
+# Ruleset metadata – used by deploy scripts to route by API type
+apiType: graphql                # rest | graphql | mcp
+analyzerType: spectral          # analyzer engine used by API Center
+description: >
+  Governance rules for GraphQL APIs.
+  Validates schema hygiene, security controls, and query-safety conventions
+  expressed via x-graphql-meta and x-security-controls extensions.
