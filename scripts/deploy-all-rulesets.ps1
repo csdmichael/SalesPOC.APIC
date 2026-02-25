@@ -4,11 +4,13 @@
 
 .DESCRIPTION
     Discovers every subdirectory under RulesetsRoot that contains a ruleset.yaml (or .yml),
-    then calls deploy-ruleset.ps1 for each one. The subdirectory name is used as the
-    analyzerConfig name.
+    then calls deploy-ruleset.ps1 for each one.
 
     When ApiType is specified, only rulesets whose config.yaml declares a matching
     apiType are deployed (rest, graphql, or mcp).
+
+    Before deploying, the script auto-prunes stale analyzer configs (excluding
+    the built-in "default" config) to stay within the tier limit.
 
 .PARAMETER SubscriptionId
     Azure subscription ID containing the API Center service.
@@ -27,14 +29,6 @@
     Optional API type filter. When set, only rulesets whose config.yaml
     declares a matching apiType are deployed. Accepted values: rest, graphql, mcp.
     When omitted, all discovered rulesets are deployed.
-
-.PARAMETER Location
-    Azure region for the API Center service (used when creating a new service).
-    Defaults to "eastus".
-
-.PARAMETER Sku
-    API Center SKU. "Free" allows 1 analyzer config; "Standard" allows up to 3.
-    Defaults to "Standard".
 #>
 
 [CmdletBinding()]
@@ -53,14 +47,7 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("rest", "graphql", "mcp", "")]
-    [string]$ApiType,
-
-    [Parameter(Mandatory = $false)]
-    [string]$Location = "eastus",
-
-    [Parameter(Mandatory = $false)]
-    [ValidateSet("Free", "Standard")]
-    [string]$Sku = "Standard"
+    [string]$ApiType
 )
 
 Set-StrictMode -Version Latest
@@ -71,30 +58,14 @@ if (-not (Test-Path $RulesetsRoot)) {
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-# ── Ensure API Center service exists ─────────────────────────────────────────
-
-$ensureServiceScript = Join-Path $scriptDir "ensure-apic-service.ps1"
-if (Test-Path $ensureServiceScript) {
-    Write-Host "Ensuring API Center service exists..." -ForegroundColor Cyan
-    & $ensureServiceScript `
-        -SubscriptionId $SubscriptionId `
-        -ResourceGroup $ResourceGroup `
-        -ServiceName $ServiceName `
-        -Location $Location `
-        -Sku $Sku
-    Write-Host ""
-} else {
-    Write-Warning "ensure-apic-service.ps1 not found – skipping service creation check."
-}
-
 $deploySingleScript = Join-Path $scriptDir "deploy-ruleset.ps1"
 
 if (-not (Test-Path $deploySingleScript)) {
     throw "deploy-ruleset.ps1 not found at: $deploySingleScript"
 }
 
-# Discover all ruleset subdirectories
+# ── Discover ruleset directories ─────────────────────────────────────────────
+
 $rulesetDirs = Get-ChildItem -Path $RulesetsRoot -Directory | Where-Object {
     (Test-Path (Join-Path $_.FullName "ruleset.yaml")) -or
     (Test-Path (Join-Path $_.FullName "ruleset.yml"))
@@ -113,7 +84,6 @@ if ($ApiType) {
                 return ($Matches[1].Trim() -eq $ApiType)
             }
         }
-        # No config.yaml or no apiType field – include only when no filter or rest
         return ($ApiType -eq "rest")
     }
 }
@@ -145,7 +115,8 @@ Write-Host "Target analyzer configs: $($targetConfigNames -join ', ')" -Foregrou
 Write-Host ""
 
 # ── Auto-prune stale analyzer configs ────────────────────────────────────────
-# List existing configs and delete any NOT in the target set to free up slots.
+# Delete configs NOT in the target set to free slots.
+# The built-in "default" config is never pruned.
 
 $apiVersion = "2024-06-01-preview"
 $baseUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiCenter/services/$ServiceName"
@@ -158,7 +129,11 @@ try {
         $configList = ($listResult | ConvertFrom-Json).value
         $existingNames = $configList | ForEach-Object { $_.name }
 
-        $staleConfigs = $existingNames | Where-Object { $_ -notin $targetConfigNames }
+        # Never prune the built-in "default" config
+        $staleConfigs = $existingNames | Where-Object {
+            $_ -notin $targetConfigNames -and $_ -ne "default"
+        }
+
         if ($staleConfigs.Count -gt 0) {
             Write-Host "Found $($staleConfigs.Count) stale config(s) to remove: $($staleConfigs -join ', ')" -ForegroundColor Yellow
             foreach ($stale in $staleConfigs) {
@@ -183,11 +158,12 @@ try {
     Write-Warning "Error during auto-prune: $_ – continuing with deployment."
 }
 
+# ── Deploy each ruleset ──────────────────────────────────────────────────────
+
 $failed = @()
 $succeeded = @()
 
 foreach ($dir in $rulesetDirs) {
-    # Read analyzerConfigName from config.yaml if present; fall back to directory name
     $configName = $dir.Name
     $cfgPath = Join-Path $dir.FullName "config.yaml"
     if (Test-Path $cfgPath) {

@@ -37,7 +37,7 @@ param(
     [string]$ServiceName,
 
     [Parameter(Mandatory = $false)]
-    [string[]]$ConfigNames = @("default", "custom-ruleset", "custom-ruleset-no-spectral"),
+    [string[]]$ConfigNames = @("custom-ruleset", "custom-ruleset-no-spectral"),
 
     [Parameter(Mandatory = $false)]
     [string]$ApiVersion = "2024-06-01-preview"

@@ -39,8 +39,8 @@ on:
         required: false
         type: choice
         options:
-          - Free
           - Standard
+          - Free
 
 permissions:
   id-token: write   # Required for Azure OIDC login
@@ -52,8 +52,11 @@ env:
   API_CENTER_SERVICE_NAME: ${{ secrets.API_CENTER_SERVICE_NAME }}
 
 jobs:
-  deploy-rulesets:
-    name: Deploy Rulesets${{ inputs.api_type && format(' ({0})', inputs.api_type) || '' }}
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 1: Ensure the API Center service (and resource group) exist
+  # ────────────────────────────────────────────────────────────────────────────
+  ensure-service:
+    name: Ensure API Center Service
     runs-on: ubuntu-latest
 
     steps:
@@ -67,27 +70,54 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Ensure API Center service exists
+        shell: pwsh
+        run: |
+          ./scripts/ensure-apic-service.ps1 `
+            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
+            -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
+            -Location "${{ inputs.location || 'eastus' }}" `
+            -Sku "${{ inputs.sku || 'Standard' }}"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Job 2: Deploy rulesets (depends on service existing)
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-rulesets:
+    name: Deploy Rulesets${{ inputs.api_type && format(' ({0})', inputs.api_type) || '' }}
+    needs: ensure-service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Clean up orphaned configs
+        if: inputs.cleanup_old_configs == true
+        shell: pwsh
+        run: |
+          Write-Host "Cleaning up orphaned analyzer configs..."
+          ./scripts/cleanup-old-configs.ps1 `
+            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
+            -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
+            -Confirm:$false
+
       - name: Deploy rulesets to API Center
         shell: pwsh
         run: |
-          # ── Optional: clean up orphaned configs ──
-          if ("${{ inputs.cleanup_old_configs }}" -eq "true") {
-            Write-Host "Cleaning up orphaned analyzer configs..."
-            ./scripts/cleanup-old-configs.ps1 `
-              -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
-              -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
-              -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
-              -Confirm:$false
-          }
-
-          # ── Deploy rulesets ──
           $params = @{
             SubscriptionId = "${{ env.AZURE_SUBSCRIPTION_ID }}"
             ResourceGroup  = "${{ env.AZURE_RESOURCE_GROUP }}"
             ServiceName    = "${{ env.API_CENTER_SERVICE_NAME }}"
             RulesetsRoot   = "./rulesets"
-            Location       = "${{ inputs.location || 'eastus' }}"
-            Sku            = "${{ inputs.sku || 'Standard' }}"
           }
 
           $apiType = "${{ inputs.api_type }}"
