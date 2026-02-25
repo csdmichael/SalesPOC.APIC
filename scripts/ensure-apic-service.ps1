@@ -22,7 +22,7 @@
 
 .PARAMETER Sku
     API Center SKU. "Free" allows 1 analyzer config; "Standard" allows up to 3.
-    Defaults to "Free".
+    Defaults to "Standard".
 
 .PARAMETER ApiVersion
     ARM API version. Defaults to 2024-03-01.
@@ -56,16 +56,37 @@ $ErrorActionPreference = "Stop"
 # ── Ensure resource group exists ─────────────────────────────────────────────
 
 Write-Host "Checking resource group '$ResourceGroup'..." -ForegroundColor Cyan
-$rgCheck = az group show --name $ResourceGroup --subscription $SubscriptionId 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Resource group '$ResourceGroup' not found. Creating in '$Location'..."
-    az group create --name $ResourceGroup --location $Location --subscription $SubscriptionId | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create resource group '$ResourceGroup'."
+$rgExists = $false
+try {
+    $rgCheck = az group show --name $ResourceGroup --subscription $SubscriptionId 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $rgExists = $true
+        Write-Host "Resource group '$ResourceGroup' already exists." -ForegroundColor Green
     }
-    Write-Host "Resource group '$ResourceGroup' created." -ForegroundColor Green
-} else {
-    Write-Host "Resource group '$ResourceGroup' already exists." -ForegroundColor Green
+} catch {
+    # Swallow – handled below
+}
+
+if (-not $rgExists) {
+    Write-Host "Resource group '$ResourceGroup' not found or not readable. Attempting to create in '$Location'..."
+    try {
+        az group create --name $ResourceGroup --location $Location --subscription $SubscriptionId | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "az group create returned non-zero exit code." }
+        Write-Host "Resource group '$ResourceGroup' created." -ForegroundColor Green
+    } catch {
+        Write-Warning @"
+Could not create resource group '$ResourceGroup'.
+This usually means the service principal lacks 'Contributor' (or equivalent) at the
+resource-group or subscription scope. Ensure the role assignment exists:
+
+  az role assignment create \\
+    --assignee <APP_ID> \\
+    --role Contributor \\
+    --scope /subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup
+
+Proceeding anyway – the resource group may already exist.
+"@
+    }
 }
 
 # ── Ensure API Center service exists ─────────────────────────────────────────

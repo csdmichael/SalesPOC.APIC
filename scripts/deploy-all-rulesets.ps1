@@ -34,7 +34,7 @@
 
 .PARAMETER Sku
     API Center SKU. "Free" allows 1 analyzer config; "Standard" allows up to 3.
-    Defaults to "Free".
+    Defaults to "Standard".
 #>
 
 [CmdletBinding()]
@@ -60,7 +60,7 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("Free", "Standard")]
-    [string]$Sku = "Free"
+    [string]$Sku = "Standard"
 )
 
 Set-StrictMode -Version Latest
