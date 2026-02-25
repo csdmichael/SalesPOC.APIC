@@ -20,13 +20,6 @@ on:
           - rest
           - graphql
           - mcp
-      cleanup_old_configs:
-        description: >
-          Delete orphaned analyzer configs (custom-ruleset, custom-ruleset-no-spectral).
-          Enable this once after migrating to the new layout.
-        required: false
-        type: boolean
-        default: false
       location:
         description: >
           Azure region for the API Center service (used when creating a new service).
@@ -98,17 +91,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Clean up orphaned configs
-        if: inputs.cleanup_old_configs == true
-        shell: pwsh
-        run: |
-          Write-Host "Cleaning up orphaned analyzer configs..."
-          ./scripts/cleanup-old-configs.ps1 `
-            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
-            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
-            -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
-            -Confirm:$false
 
       - name: Deploy rulesets to API Center
         shell: pwsh
