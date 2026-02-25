@@ -1,26 +1,33 @@
-# API Center Custom Ruleset
+# API Center Custom Rulesets
 
-Spectral ruleset for API governance in Azure API Center (`api-center-poc-my`).
+Spectral rulesets for API governance in Azure API Center (`api-center-poc-my`).
 
 ## Structure
 
 ```
 ├── .github/workflows/
-│   └── deploy-ruleset.yml      # GitHub Actions workflow for auto-deployment
-├── rulesets/custom-ruleset/
-│   └── ruleset.yaml            # Spectral ruleset (edit this)
+│   └── deploy-ruleset.yml          # GitHub Actions workflow for auto-deployment
+├── rulesets/
+│   ├── custom-ruleset/
+│   │   └── ruleset.yaml            # Spectral ruleset
+│   └── custom-ruleset-no-spectral/
+│       └── ruleset.yaml            # Non-Spectral ruleset
 ├── scripts/
-│   └── deploy-ruleset.ps1      # Deployment script
+│   ├── deploy-all-rulesets.ps1     # Deploys all rulesets
+│   └── deploy-ruleset.ps1          # Deploys a single ruleset
 └── README.md
 ```
 
 ## How It Works
 
-When you push changes to `rulesets/custom-ruleset/**` on the `main` branch, the GitHub Actions workflow automatically:
+When you push changes to `rulesets/**` on the `main` branch, the GitHub Actions workflow automatically:
 
-1. Packages `ruleset.yaml` (and any `functions/` folder) into a zip
-2. Base64-encodes the zip
-3. Calls the API Center `importRuleset` REST API to deploy it
+1. Discovers all ruleset subdirectories under `rulesets/` (each subfolder containing a `ruleset.yaml` or `ruleset.yml`)
+2. For each ruleset, packages it (and any `functions/` folder) into a zip
+3. Base64-encodes the zip
+4. Calls the API Center `importRuleset` REST API to deploy it
+
+The subdirectory name is used as the analyzer configuration name (e.g., `custom-ruleset`, `custom-ruleset-no-spectral`).
 
 ## Setup
 
@@ -75,7 +82,17 @@ The workflow triggers automatically on changes to the ruleset files.
 
 ## Manual Deployment
 
-You can also run the deployment script locally:
+You can deploy all rulesets locally:
+
+```powershell
+./scripts/deploy-all-rulesets.ps1 `
+  -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
+  -ResourceGroup "ai-myaacoub" `
+  -ServiceName "api-center-poc-my" `
+  -RulesetsRoot "./rulesets"
+```
+
+Or deploy a single ruleset:
 
 ```powershell
 ./scripts/deploy-ruleset.ps1 `
