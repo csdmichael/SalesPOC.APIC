@@ -1,0 +1,45 @@
+name: Deploy Custom Ruleset to API Center
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rulesets/custom-ruleset/**'
+      - 'scripts/deploy-ruleset.ps1'
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for Azure OIDC login
+  contents: read
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+  API_CENTER_SERVICE_NAME: ${{ secrets.API_CENTER_SERVICE_NAME }}
+  ANALYZER_CONFIG_NAME: "custom-ruleset"
+
+jobs:
+  deploy-ruleset:
+    name: Deploy Spectral Ruleset
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy ruleset to API Center
+        shell: pwsh
+        run: |
+          ./scripts/deploy-ruleset.ps1 `
+            -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
+            -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
+            -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
+            -AnalyzerConfigName "${{ env.ANALYZER_CONFIG_NAME }}" `
+            -RulesetPath "./rulesets/custom-ruleset"
