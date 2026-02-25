@@ -12,9 +12,10 @@ type-specific rules selected automatically via `config.yaml` metadata.
 > | **Standard** | 3                  |
 >
 > This repo targets the **Standard** tier and uses all 3 slots:
-> `default` (REST), `graphql-ruleset`, `mcp-ruleset`.
-> On the **Free** tier only the built-in `default` config can be used — deploy
-> the REST ruleset into it.
+> `rest-ruleset`, `graphql-ruleset`, `mcp-ruleset`.
+> The built-in `default` analyzer config is left untouched.
+> On the **Free** tier only one analyzer config can be deployed — choose the
+> ruleset that matches your primary API type.
 
 ## Structure
 
@@ -23,7 +24,7 @@ type-specific rules selected automatically via `config.yaml` metadata.
 │   └── deploy-ruleset.yml              # GitHub Actions workflow (2 jobs)
 ├── rulesets/
 │   ├── rest-default/                   # REST – Spectral OAS + security controls
-│   │   ├── config.yaml                 #   apiType: rest, analyzerConfigName: default
+│   │   ├── config.yaml                 #   apiType: rest, analyzerConfigName: rest-ruleset
 │   │   └── ruleset.yaml
 │   ├── graphql-ruleset/                # GraphQL – schema hygiene + security
 │   │   ├── config.yaml                 #   apiType: graphql, analyzerType: custom
@@ -47,7 +48,7 @@ analyzer engine, and target config name:
 ```yaml
 apiType: rest                       # rest | graphql | mcp
 analyzerType: spectral              # spectral (REST) or custom (GraphQL/MCP)
-analyzerConfigName: default         # Azure API Center config to deploy into
+analyzerConfigName: rest-ruleset    # Azure API Center config to deploy into
 ```
 
 The deploy scripts read this file to:
@@ -78,7 +79,7 @@ Runs after Job 1 completes:
 7. Calls the API Center `importRuleset` REST API to deploy it
 
 The `analyzerConfigName` in config.yaml maps each directory to its Azure API Center
-target: `rest-default/` deploys to the built-in `default` config, `graphql-ruleset/`
+target: `rest-default/` deploys to `rest-ruleset`, `graphql-ruleset/`
 deploys to `graphql-ruleset`, `mcp-ruleset/` deploys to `mcp-ruleset`.
 
 ## Setup
@@ -186,7 +187,7 @@ run the cleanup script first to free slots:
 ### Deploy by API type
 
 ```powershell
-# Deploy REST rulesets only (→ default config)
+# Deploy REST rulesets only (→ rest-ruleset config)
 ./scripts/deploy-all-rulesets.ps1 `
   -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
   -ResourceGroup "ai-myaacoub" `
@@ -215,7 +216,7 @@ run the cleanup script first to free slots:
   -SubscriptionId "86b37969-9445-49cf-b03f-d8866235171c" `
   -ResourceGroup "ai-myaacoub" `
   -ServiceName "api-center-poc-my" `
-  -AnalyzerConfigName "default" `
+  -AnalyzerConfigName "rest-ruleset" `
   -RulesetPath "./rulesets/rest-default"
 ```
 
@@ -230,6 +231,6 @@ Check **cleanup_old_configs** to delete orphaned configs first (one-time migrati
 
 | API Type  | Source Directory   | Analyzer Config    | Analyzer Type | Key Rules                                                       |
 |-----------|--------------------|--------------------|---------------|-----------------------------------------------------------------|
-| REST      | `rest-default`     | `default`          | `spectral`    | Spectral OAS linting + `x-security-controls` enforcement        |
+| REST      | `rest-default`     | `rest-ruleset`     | `spectral`    | Spectral OAS linting + `x-security-controls` enforcement        |
 | GraphQL   | `graphql-ruleset`  | `graphql-ruleset`  | `custom`      | Schema hygiene, depth/complexity limits, `x-security-controls`  |
 | MCP       | `mcp-ruleset`      | `mcp-ruleset`      | `custom`      | Tool/resource/prompt governance, transport security, prompt injection protection |

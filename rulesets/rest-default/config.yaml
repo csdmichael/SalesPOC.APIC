@@ -1,7 +1,7 @@
 # Ruleset metadata – used by deploy scripts to route by API type
 apiType: rest                       # rest | graphql | mcp
 analyzerType: spectral              # analyzer engine used by API Center
-analyzerConfigName: default         # Azure API Center analyzer config name
+analyzerConfigName: rest-ruleset    # Azure API Center analyzer config name
 description: >
   Full REST/OpenAPI governance – inlined Spectral OAS rules plus custom
   security-controls checks (rate limiting, input validation, error handling).
