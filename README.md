@@ -245,3 +245,17 @@ Schema hygiene, depth/complexity limits, and security controls:
 Tool/resource/prompt governance, transport security, and prompt injection protection:
 
 ![MCP Ruleset](Documentation/Screenshots/4.%20MCP%20Ruleset.png)
+
+### Applying Ruleset Filter Conditions
+
+Example of configuring a filter condition by **Asset Type** when scoping where a ruleset is applied:
+
+![Ruleset Filter Condition - Asset Type](Documentation/Screenshots/5.%20Ruleset%20Filter%20Condition%20-%20Asset%20Type.png)
+
+Selecting the asset type value for the condition:
+
+![Select Asset Type](Documentation/Screenshots/6.%20Select%20Asset%20Type.png)
+
+Filter condition applied successfully:
+
+![Filter Condition Applied](Documentation/Screenshots/7.%20Filter%20Condition%20Applied.png)
