@@ -219,3 +219,29 @@ empty to deploy all rulesets. Choose a **Location** and **SKU** for service crea
 | REST      | `rest-default`     | `spectral-openapi` | `spectral`    | Inlined Spectral OAS rules + `x-security-controls` enforcement  |
 | GraphQL   | `graphql-ruleset`  | `graphql-ruleset`  | `spectral`    | Schema hygiene, depth/complexity limits, `x-security-controls`  |
 | MCP       | `mcp-ruleset`      | `mcp-ruleset`      | `spectral`    | Tool/resource/prompt governance, transport security, prompt injection protection |
+
+## Deployed Rulesets (Azure Portal)
+
+### Analysis Profiles Overview
+
+All three analyzer configs deployed to Azure API Center:
+
+![Analysis Profiles](Documentation/Screenshots/1.%20Analysis%20Profiles.png)
+
+### REST Ruleset (`spectral-openapi`)
+
+Inlined Spectral OAS rules plus custom `x-security-controls` enforcement:
+
+![REST Ruleset](Documentation/Screenshots/2.%20REST%20Ruleset.png)
+
+### GraphQL Ruleset (`graphql-ruleset`)
+
+Schema hygiene, depth/complexity limits, and security controls:
+
+![GraphQL Ruleset](Documentation/Screenshots/3.%20GraphQL%20Ruleset.png)
+
+### MCP Ruleset (`mcp-ruleset`)
+
+Tool/resource/prompt governance, transport security, and prompt injection protection:
+
+![MCP Ruleset](Documentation/Screenshots/4.%20MCP%20Ruleset.png)
