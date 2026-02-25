@@ -100,6 +100,15 @@ if (Test-Path $configFile) {
         $analyzerType = $Matches[1].Trim()
         Write-Host "  Analyzer type     : $analyzerType"
     }
+
+    # Parse analyzerConfigName (overrides the -AnalyzerConfigName parameter)
+    if ($configLines -match '(?m)^analyzerConfigName:\s*(\S+)') {
+        $overrideName = $Matches[1].Trim()
+        if ($overrideName -ne $AnalyzerConfigName) {
+            Write-Host "  Config name override: $AnalyzerConfigName -> $overrideName"
+            $AnalyzerConfigName = $overrideName
+        }
+    }
 } else {
     Write-Host "No config.yaml found in $rulesetDir – defaulting to analyzerType='spectral'."
 }

@@ -19,6 +19,13 @@ on:
           - rest
           - graphql
           - mcp
+      cleanup_old_configs:
+        description: >
+          Delete orphaned analyzer configs (custom-ruleset, custom-ruleset-no-spectral).
+          Enable this once after migrating to the new layout.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write   # Required for Azure OIDC login
@@ -48,6 +55,17 @@ jobs:
       - name: Deploy rulesets to API Center
         shell: pwsh
         run: |
+          # ── Optional: clean up orphaned configs ──
+          if ("${{ inputs.cleanup_old_configs }}" -eq "true") {
+            Write-Host "Cleaning up orphaned analyzer configs..."
+            ./scripts/cleanup-old-configs.ps1 `
+              -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
+              -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
+              -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
+              -Confirm:$false
+          }
+
+          # ── Deploy rulesets ──
           $params = @{
             SubscriptionId = "${{ env.AZURE_SUBSCRIPTION_ID }}"
             ResourceGroup  = "${{ env.AZURE_RESOURCE_GROUP }}"

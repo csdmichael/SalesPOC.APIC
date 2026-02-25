@@ -100,9 +100,18 @@ $failed = @()
 $succeeded = @()
 
 foreach ($dir in $rulesetDirs) {
+    # Read analyzerConfigName from config.yaml if present; fall back to directory name
     $configName = $dir.Name
+    $cfgPath = Join-Path $dir.FullName "config.yaml"
+    if (Test-Path $cfgPath) {
+        $cfgContent = Get-Content $cfgPath -Raw
+        if ($cfgContent -match '(?m)^analyzerConfigName:\s*(\S+)') {
+            $configName = $Matches[1].Trim()
+        }
+    }
+
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Deploying: $configName" -ForegroundColor Cyan
+    Write-Host "Deploying: $($dir.Name) -> analyzer config '$configName'" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
 
     try {
