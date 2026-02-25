@@ -1,11 +1,12 @@
-name: Deploy Custom Ruleset to API Center
+name: Deploy All Rulesets to API Center
 
 on:
   push:
     branches: [main]
     paths:
-      - 'rulesets/custom-ruleset/**'
+      - 'rulesets/**'
       - 'scripts/deploy-ruleset.ps1'
+      - 'scripts/deploy-all-rulesets.ps1'
   workflow_dispatch:
 
 permissions:
@@ -16,11 +17,10 @@ env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
   API_CENTER_SERVICE_NAME: ${{ secrets.API_CENTER_SERVICE_NAME }}
-  ANALYZER_CONFIG_NAME: "custom-ruleset"
 
 jobs:
-  deploy-ruleset:
-    name: Deploy Spectral Ruleset
+  deploy-rulesets:
+    name: Deploy All Rulesets
     runs-on: ubuntu-latest
 
     steps:
@@ -34,12 +34,11 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy ruleset to API Center
+      - name: Deploy all rulesets to API Center
         shell: pwsh
         run: |
-          ./scripts/deploy-ruleset.ps1 `
+          ./scripts/deploy-all-rulesets.ps1 `
             -SubscriptionId "${{ env.AZURE_SUBSCRIPTION_ID }}" `
             -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
             -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
-            -AnalyzerConfigName "${{ env.ANALYZER_CONFIG_NAME }}" `
-            -RulesetPath "./rulesets/custom-ruleset-no-spectral"
+            -RulesetsRoot "./rulesets"
