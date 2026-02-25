@@ -1,5 +1,5 @@
-extends:
-  - spectral:oas
+#extends:
+#  - spectral:oas
 
 rules:
   oas3-schema:
