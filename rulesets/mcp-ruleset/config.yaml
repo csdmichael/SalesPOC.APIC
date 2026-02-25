@@ -1,6 +1,6 @@
 # Ruleset metadata – used by deploy scripts to route by API type
 apiType: mcp                        # rest | graphql | mcp
-analyzerType: custom                # analyzer engine used by API Center
+analyzerType: spectral              # Azure API Center only supports 'spectral' (maps to Spectral enum)
 analyzerConfigName: mcp-ruleset     # Azure API Center analyzer config name
 description: >
   Governance rules for Model Context Protocol (MCP) APIs.

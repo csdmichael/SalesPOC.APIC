@@ -155,44 +155,23 @@ $baseUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceG
 
 $configUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName`?api-version=$ApiVersion"
 
-Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists with analyzerType='$analyzerType'..."
-$needsCreate = $false
+Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists..."
 $checkResult = az rest --method GET --url $configUrl -o json 2>&1
 if ($LASTEXITCODE -ne 0) {
-    $needsCreate = $true
-} else {
-    # Config exists – verify the analyzerType matches
-    try {
-        $existing = $checkResult | ConvertFrom-Json
-        $existingType = $existing.properties.analyzerType
-        Write-Host "  Existing analyzer config type: $existingType"
-        if ($existingType -ne $analyzerType) {
-            Write-Host "  Type mismatch: existing='$existingType', desired='$analyzerType'. Deleting and recreating..." -ForegroundColor Yellow
-            $deleteResult = az rest --method DELETE --url $configUrl 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warning "Failed to delete existing config: $deleteResult"
-            } else {
-                Write-Host "  Deleted existing config '$AnalyzerConfigName'."
-                Start-Sleep -Seconds 5
-            }
-            $needsCreate = $true
-        } else {
-            Write-Host "  Analyzer config '$AnalyzerConfigName' already exists with correct type."
-        }
-    } catch {
-        Write-Warning "Could not parse existing config response. Proceeding with import."
-    }
-}
-
-if ($needsCreate) {
-    Write-Host "Creating analyzer config '$AnalyzerConfigName' with type '$analyzerType'..."
-    $configBody = @{ properties = @{ analyzerType = $analyzerType } } | ConvertTo-Json -Compress
+    Write-Host "Analyzer config not found. Creating '$AnalyzerConfigName'..."
+    # Azure API Center only accepts 'Spectral' as analyzerType (PascalCase enum)
+    $configBody = @{ properties = @{ analyzerType = "Spectral" } } | ConvertTo-Json -Compress
     $createResult = az rest --method PUT --url $configUrl --body $configBody --headers "Content-Type=application/json" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create analyzer config: $createResult"
         throw "Could not create analyzerConfig '$AnalyzerConfigName'"
     }
     Write-Host "Analyzer config '$AnalyzerConfigName' created."
+    # Wait for the new config to propagate before importing
+    Write-Host "Waiting 10s for config propagation..."
+    Start-Sleep -Seconds 10
+} else {
+    Write-Host "Analyzer config '$AnalyzerConfigName' already exists."
 }
 
 # ── Import ruleset ───────────────────────────────────────────────────────────
@@ -205,15 +184,30 @@ $json = $bodyObj | ConvertTo-Json -Compress
 $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) "$AnalyzerConfigName-import-body.json"
 [System.IO.File]::WriteAllText($bodyFile, $json, [System.Text.Encoding]::UTF8)
 
-Write-Host "Importing ruleset into analyzer config '$AnalyzerConfigName'..."
-$importResult = az rest --method POST --url $importUrl --body "@$bodyFile" --headers "Content-Type=application/json" 2>&1
+# Import with retry – the first attempt after config creation may fail due to propagation delay
+$maxRetries = 3
+$retryDelay = 10
+$importSuccess = $false
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Import failed: $importResult"
-    throw "Azure CLI command failed with exit code $LASTEXITCODE"
+for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+    Write-Host "Importing ruleset into analyzer config '$AnalyzerConfigName' (attempt $attempt/$maxRetries)..."
+    $importResult = az rest --method POST --url $importUrl --body "@$bodyFile" --headers "Content-Type=application/json" 2>&1
+
+    if ($LASTEXITCODE -eq 0) {
+        $importSuccess = $true
+        Write-Host "Import completed successfully."
+        break
+    }
+
+    if ($attempt -lt $maxRetries) {
+        Write-Warning "Import attempt $attempt failed: $importResult"
+        Write-Host "Retrying in ${retryDelay}s..."
+        Start-Sleep -Seconds $retryDelay
+    } else {
+        Write-Error "Import failed after $maxRetries attempts: $importResult"
+        throw "Azure CLI command failed with exit code $LASTEXITCODE"
+    }
 }
-
-Write-Host "Import completed successfully."
 
 # ── Verify deployment ────────────────────────────────────────────────────────
 

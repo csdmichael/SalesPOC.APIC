@@ -24,13 +24,13 @@ type-specific rules selected automatically via `config.yaml` metadata.
 │   └── deploy-ruleset.yml              # GitHub Actions workflow (2 jobs)
 ├── rulesets/
 │   ├── rest-default/                   # REST – Spectral OAS + security controls
-│   │   ├── config.yaml                 #   apiType: rest, analyzerType: custom
+│   │   ├── config.yaml                 #   apiType: rest, analyzerType: spectral
 │   │   └── ruleset.yaml
 │   ├── graphql-ruleset/                # GraphQL – schema hygiene + security
-│   │   ├── config.yaml                 #   apiType: graphql, analyzerType: custom
+│   │   ├── config.yaml                 #   apiType: graphql, analyzerType: spectral
 │   │   └── ruleset.yaml
 │   └── mcp-ruleset/                    # MCP – tool/resource/prompt governance
-│       ├── config.yaml                 #   apiType: mcp, analyzerType: custom
+│       ├── config.yaml                 #   apiType: mcp, analyzerType: spectral
 │       └── ruleset.yaml
 ├── scripts/
 │   ├── deploy-all-rulesets.ps1         # Deploys all (or filtered) rulesets
@@ -46,7 +46,7 @@ analyzer engine, and target config name:
 
 ```yaml
 apiType: rest                       # rest | graphql | mcp
-analyzerType: custom                # all rulesets use 'custom' (rules are fully inlined)
+analyzerType: spectral              # Azure API Center only supports Spectral
 analyzerConfigName: spectral-openapi # Azure API Center config to deploy into
 ```
 
@@ -216,6 +216,6 @@ empty to deploy all rulesets. Choose a **Location** and **SKU** for service crea
 
 | API Type  | Source Directory   | Analyzer Config    | Analyzer Type | Key Rules                                                       |
 |-----------|--------------------|--------------------|---------------|-----------------------------------------------------------------|
-| REST      | `rest-default`     | `spectral-openapi` | `custom`      | Inlined Spectral OAS rules + `x-security-controls` enforcement  |
-| GraphQL   | `graphql-ruleset`  | `graphql-ruleset`  | `custom`      | Schema hygiene, depth/complexity limits, `x-security-controls`  |
-| MCP       | `mcp-ruleset`      | `mcp-ruleset`      | `custom`      | Tool/resource/prompt governance, transport security, prompt injection protection |
+| REST      | `rest-default`     | `spectral-openapi` | `spectral`    | Inlined Spectral OAS rules + `x-security-controls` enforcement  |
+| GraphQL   | `graphql-ruleset`  | `graphql-ruleset`  | `spectral`    | Schema hygiene, depth/complexity limits, `x-security-controls`  |
+| MCP       | `mcp-ruleset`      | `mcp-ruleset`      | `spectral`    | Tool/resource/prompt governance, transport security, prompt injection protection |
