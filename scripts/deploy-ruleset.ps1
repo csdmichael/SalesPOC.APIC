@@ -98,7 +98,7 @@ Write-Host "Ensuring analyzer config '$AnalyzerConfigName' exists..."
 $checkResult = az rest --method GET --url $configUrl 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Analyzer config not found. Creating '$AnalyzerConfigName'..."
-    $configBody = @{ properties = @{} } | ConvertTo-Json -Compress
+    $configBody = @{ properties = @{ analyzerType = "spectral" } } | ConvertTo-Json -Compress
     $createResult = az rest --method PUT --url $configUrl --body $configBody --headers "Content-Type=application/json" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to create analyzer config: $createResult"
