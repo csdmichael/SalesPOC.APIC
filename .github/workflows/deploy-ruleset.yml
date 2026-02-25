@@ -42,4 +42,4 @@ jobs:
             -ResourceGroup "${{ env.AZURE_RESOURCE_GROUP }}" `
             -ServiceName "${{ env.API_CENTER_SERVICE_NAME }}" `
             -AnalyzerConfigName "${{ env.ANALYZER_CONFIG_NAME }}" `
-            -RulesetPath "./rulesets/custom-ruleset"
+            -RulesetPath "./rulesets/custom-ruleset-no-spectral"

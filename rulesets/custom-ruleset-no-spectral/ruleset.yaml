@@ -1,9 +1,5 @@
-extends:
-  - spectral:oas
 
 rules:
-  oas3-schema:
-    severity: off
 
   require-security-controls-contract:
     description: API specs must declare security control settings in x-security-controls.
