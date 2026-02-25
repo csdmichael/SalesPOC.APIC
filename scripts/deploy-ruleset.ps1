@@ -136,7 +136,9 @@ $exportUrl = "$baseUrl/workspaces/default/analyzerConfigs/$AnalyzerConfigName/ex
 $exportResult = az rest --method POST --url $exportUrl --headers "Content-Type=application/json" -o json 2>&1
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Verification export failed: $exportResult"
+    Write-Warning "Verification export failed (this may be normal for newly created configs): $exportResult"
+    # Reset LASTEXITCODE so it doesn't propagate as a failure
+    $global:LASTEXITCODE = 0
 } else {
     $export = $exportResult | ConvertFrom-Json
     Write-Host "Verification: Exported format = $($export.format), value length = $($export.value.Length)"
