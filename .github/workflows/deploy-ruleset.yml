@@ -7,6 +7,7 @@ on:
       - 'rulesets/**'
       - 'scripts/deploy-ruleset.ps1'
       - 'scripts/deploy-all-rulesets.ps1'
+      - 'scripts/ensure-apic-service.ps1'
   workflow_dispatch:
     inputs:
       api_type:
@@ -26,6 +27,20 @@ on:
         required: false
         type: boolean
         default: false
+      location:
+        description: >
+          Azure region for the API Center service (used when creating a new service).
+        required: false
+        type: string
+        default: 'eastus'
+      sku:
+        description: >
+          API Center SKU. Free allows 1 analyzer config; Standard allows up to 3.
+        required: false
+        type: choice
+        options:
+          - Free
+          - Standard
 
 permissions:
   id-token: write   # Required for Azure OIDC login
@@ -71,6 +86,8 @@ jobs:
             ResourceGroup  = "${{ env.AZURE_RESOURCE_GROUP }}"
             ServiceName    = "${{ env.API_CENTER_SERVICE_NAME }}"
             RulesetsRoot   = "./rulesets"
+            Location       = "${{ inputs.location || 'eastus' }}"
+            Sku            = "${{ inputs.sku || 'Standard' }}"
           }
 
           $apiType = "${{ inputs.api_type }}"

@@ -27,6 +27,14 @@
     Optional API type filter. When set, only rulesets whose config.yaml
     declares a matching apiType are deployed. Accepted values: rest, graphql, mcp.
     When omitted, all discovered rulesets are deployed.
+
+.PARAMETER Location
+    Azure region for the API Center service (used when creating a new service).
+    Defaults to "eastus".
+
+.PARAMETER Sku
+    API Center SKU. "Free" allows 1 analyzer config; "Standard" allows up to 3.
+    Defaults to "Free".
 #>
 
 [CmdletBinding()]
@@ -45,7 +53,14 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("rest", "graphql", "mcp", "")]
-    [string]$ApiType
+    [string]$ApiType,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Location = "eastus",
+
+    [Parameter(Mandatory = $false)]
+    [ValidateSet("Free", "Standard")]
+    [string]$Sku = "Free"
 )
 
 Set-StrictMode -Version Latest
@@ -56,6 +71,23 @@ if (-not (Test-Path $RulesetsRoot)) {
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# ── Ensure API Center service exists ─────────────────────────────────────────
+
+$ensureServiceScript = Join-Path $scriptDir "ensure-apic-service.ps1"
+if (Test-Path $ensureServiceScript) {
+    Write-Host "Ensuring API Center service exists..." -ForegroundColor Cyan
+    & $ensureServiceScript `
+        -SubscriptionId $SubscriptionId `
+        -ResourceGroup $ResourceGroup `
+        -ServiceName $ServiceName `
+        -Location $Location `
+        -Sku $Sku
+    Write-Host ""
+} else {
+    Write-Warning "ensure-apic-service.ps1 not found – skipping service creation check."
+}
+
 $deploySingleScript = Join-Path $scriptDir "deploy-ruleset.ps1"
 
 if (-not (Test-Path $deploySingleScript)) {
