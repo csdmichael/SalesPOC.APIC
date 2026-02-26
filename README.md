@@ -275,3 +275,9 @@ Selecting the asset type value for the condition:
 Filter condition applied successfully:
 
 ![Filter Condition Applied](Documentation/Screenshots/7.%20Filter%20Condition%20Applied.png)
+
+
+## Related projects
+
+- SalesPOC UI: https://github.com/csdmichael/SalesPOC.UI
+- SalesPOC MCP Servers: https://github.com/csdmichael/SalesPOC.MCP
