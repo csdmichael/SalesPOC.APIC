@@ -21,7 +21,9 @@ type-specific rules selected automatically via `config.yaml` metadata.
 
 ```
 ├── .github/workflows/
-│   └── deploy-ruleset.yml              # GitHub Actions workflow (2 jobs)
+│   ├── deploy-ruleset.yml              # GitHub Actions workflow (2 jobs)
+│   ├── test-rest-api-ruleset.yml       # Tests REST API spec with rest-default ruleset
+│   └── test-mcp-api-ruleset.yml        # Tests MCP server manifest with mcp-ruleset
 ├── rulesets/
 │   ├── rest-default/                   # REST – Spectral OAS + security controls
 │   │   ├── config.yaml                 #   apiType: rest, analyzerType: spectral
@@ -147,6 +149,20 @@ git push origin main
 ```
 
 The workflow triggers automatically on changes to the ruleset files.
+
+## API Test Workflows
+
+Two dedicated workflows validate live endpoints against your custom Spectral rulesets:
+
+- **REST test**: `.github/workflows/test-rest-api-ruleset.yml`
+  - Default URL: `https://apim-poc-my.azure-api.net/salesapi`
+  - Discovers an OpenAPI document from common spec paths and lints it with `rulesets/rest-default/ruleset.yaml`.
+
+- **MCP test**: `.github/workflows/test-mcp-api-ruleset.yml`
+  - Default URL: `https://apim-poc-my.azure-api.net/sales-api-mcp/mcp`
+  - Discovers an MCP manifest-style document and lints it with `rulesets/mcp-ruleset/ruleset.yaml`.
+
+Run either from **GitHub Actions → Run workflow** and override the input URL if needed.
 
 ## Manual Deployment
 

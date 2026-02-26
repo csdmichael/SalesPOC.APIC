@@ -1,0 +1,91 @@
+name: Test MCP API with MCP Ruleset
+
+on:
+  workflow_dispatch:
+    inputs:
+      mcp_url:
+        description: MCP server URL to test
+        required: true
+        type: string
+        default: https://apim-poc-my.azure-api.net/sales-api-mcp/mcp
+  push:
+    branches: [main]
+    paths:
+      - 'rulesets/mcp-ruleset/**'
+      - '.github/workflows/test-mcp-api-ruleset.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  spectral-test-mcp:
+    name: Spectral Test (MCP)
+    runs-on: ubuntu-latest
+
+    env:
+      MCP_BASE_URL: ${{ inputs.mcp_url || 'https://apim-poc-my.azure-api.net/sales-api-mcp/mcp' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Spectral CLI
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Discover MCP manifest URL
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_url="${MCP_BASE_URL%/}"
+
+          candidates=(
+            "$base_url"
+            "$base_url/manifest"
+            "$base_url/mcp.json"
+            "$base_url/.well-known/mcp.json"
+            "$base_url/capabilities"
+            "$base_url/metadata"
+          )
+
+          found=""
+
+          for url in "${candidates[@]}"; do
+            echo "Trying: $url"
+
+            if curl -fsSL "$url" -o mcp.tmp 2>/dev/null; then
+              if grep -Eq '"protocolVersion"|"serverInfo"|"capabilities"' mcp.tmp; then
+                found="$url"
+                mv mcp.tmp mcp-manifest.json
+                echo "Found MCP manifest-like document at: $url"
+                break
+              fi
+            fi
+          done
+
+          if [[ -z "$found" ]]; then
+            echo "Could not find an MCP manifest document for $base_url" >&2
+            echo "Checked candidates:" >&2
+            printf ' - %s\n' "${candidates[@]}" >&2
+            exit 1
+          fi
+
+          echo "manifest_url=$found" >> "$GITHUB_OUTPUT"
+
+      - name: Lint MCP manifest with mcp-ruleset
+        run: |
+          spectral lint mcp-manifest.json \
+            --ruleset rulesets/mcp-ruleset/ruleset.yaml \
+            --format stylish
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "MCP ruleset test finished for: $MCP_BASE_URL"
+          echo "MCP manifest source: ${{ steps.discover.outputs.manifest_url }}"

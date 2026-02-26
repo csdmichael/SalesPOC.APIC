@@ -1,0 +1,91 @@
+name: Test REST API with Rest Ruleset
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Base API URL to test
+        required: true
+        type: string
+        default: https://apim-poc-my.azure-api.net/salesapi
+  push:
+    branches: [main]
+    paths:
+      - 'rulesets/rest-default/**'
+      - '.github/workflows/test-rest-api-ruleset.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  spectral-test-rest:
+    name: Spectral Test (REST)
+    runs-on: ubuntu-latest
+
+    env:
+      API_BASE_URL: ${{ inputs.api_url || 'https://apim-poc-my.azure-api.net/salesapi' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Spectral CLI
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Discover OpenAPI document URL
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_url="${API_BASE_URL%/}"
+
+          candidates=(
+            "$base_url/openapi.json"
+            "$base_url/openapi.yaml"
+            "$base_url/swagger.json"
+            "$base_url/swagger/v1/swagger.json"
+            "$base_url/v1/swagger.json"
+            "$base_url/openapi?format=json"
+          )
+
+          found=""
+
+          for url in "${candidates[@]}"; do
+            echo "Trying: $url"
+
+            if curl -fsSL "$url" -o spec.tmp 2>/dev/null; then
+              if grep -Eq '"openapi"|"swagger"|^openapi:' spec.tmp; then
+                found="$url"
+                mv spec.tmp api-spec.yaml
+                echo "Found valid OpenAPI document at: $url"
+                break
+              fi
+            fi
+          done
+
+          if [[ -z "$found" ]]; then
+            echo "Could not find an OpenAPI document for $base_url" >&2
+            echo "Checked candidates:" >&2
+            printf ' - %s\n' "${candidates[@]}" >&2
+            exit 1
+          fi
+
+          echo "spec_url=$found" >> "$GITHUB_OUTPUT"
+
+      - name: Lint API with rest-default ruleset
+        run: |
+          spectral lint api-spec.yaml \
+            --ruleset rulesets/rest-default/ruleset.yaml \
+            --format stylish
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "REST ruleset test finished for: $API_BASE_URL"
+          echo "OpenAPI source: ${{ steps.discover.outputs.spec_url }}"
