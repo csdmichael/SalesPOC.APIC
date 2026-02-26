@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: https://apim-poc-my.azure-api.net/sales-api-mcp/mcp
+      apim_subscription_key:
+        description: Optional APIM subscription key (required for protected endpoints)
+        required: false
+        type: string
+        default: ''
   push:
     branches: [main]
     paths:
@@ -24,6 +29,7 @@ jobs:
 
     env:
       MCP_BASE_URL: ${{ inputs.mcp_url || 'https://apim-poc-my.azure-api.net/sales-api-mcp/mcp' }}
+      APIM_SUBSCRIPTION_KEY: ${{ inputs.apim_subscription_key || '' }}
 
     steps:
       - name: Checkout repository
@@ -44,6 +50,11 @@ jobs:
           set -euo pipefail
 
           base_url="${MCP_BASE_URL%/}"
+          api_root="$base_url"
+
+          if [[ "$base_url" =~ /mcp$ ]]; then
+            api_root="${base_url%/*}"
+          fi
 
           candidates=(
             "$base_url/manifest"
@@ -51,7 +62,13 @@ jobs:
             "$base_url/.well-known/mcp.json"
             "$base_url/capabilities"
             "$base_url/metadata"
+            "$api_root/manifest"
+            "$api_root/mcp.json"
+            "$api_root/.well-known/mcp.json"
+            "$api_root/capabilities"
+            "$api_root/metadata"
             "$base_url"
+            "$api_root"
           )
 
           curl_args=(
@@ -60,6 +77,10 @@ jobs:
             --max-time 12
             -H "Accept: application/json"
           )
+
+          if [[ -n "${APIM_SUBSCRIPTION_KEY:-}" ]]; then
+            curl_args+=( -H "Ocp-Apim-Subscription-Key: ${APIM_SUBSCRIPTION_KEY}" )
+          fi
 
           found=""
 
