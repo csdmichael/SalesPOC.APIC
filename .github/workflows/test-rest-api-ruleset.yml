@@ -56,12 +56,16 @@ jobs:
           fi
 
           candidates=(
+            "$base_url/v1/openapi/v1.json"
+            "$base_url/openapi/v1.json"
             "$base_url/openapi.json"
             "$base_url/openapi.yaml"
             "$base_url/swagger.json"
             "$base_url/swagger/v1/swagger.json"
             "$base_url/v1/swagger.json"
             "$base_url/openapi?format=json"
+            "$api_root/v1/openapi/v1.json"
+            "$api_root/openapi/v1.json"
             "$api_root/openapi.json"
             "$api_root/openapi.yaml"
             "$api_root/swagger.json"
