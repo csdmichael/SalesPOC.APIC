@@ -46,12 +46,19 @@ jobs:
           base_url="${MCP_BASE_URL%/}"
 
           candidates=(
-            "$base_url"
             "$base_url/manifest"
             "$base_url/mcp.json"
             "$base_url/.well-known/mcp.json"
             "$base_url/capabilities"
             "$base_url/metadata"
+            "$base_url"
+          )
+
+          curl_args=(
+            -fsSL
+            --connect-timeout 5
+            --max-time 12
+            -H "Accept: application/json"
           )
 
           found=""
@@ -59,7 +66,7 @@ jobs:
           for url in "${candidates[@]}"; do
             echo "Trying: $url"
 
-            if curl -fsSL "$url" -o mcp.tmp 2>/dev/null; then
+            if curl "${curl_args[@]}" "$url" -o mcp.tmp 2>/dev/null; then
               if grep -Eq '"protocolVersion"|"serverInfo"|"capabilities"' mcp.tmp; then
                 found="$url"
                 mv mcp.tmp mcp-manifest.json
