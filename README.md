@@ -277,6 +277,29 @@ Filter condition applied successfully:
 ![Filter Condition Applied](Documentation/Screenshots/7.%20Filter%20Condition%20Applied.png)
 
 
+## Live REST Endpoint Validation (API Center Analyzer)
+
+For live endpoint validation against an Azure API Center deployed analyzer/ruleset
+(for example, a Spectral OpenAPI ruleset), use:
+
+- SalesPOC APIC Consumer: https://github.com/csdmichael/SalesPOC.APIC.Consumer
+
+The consumer project provides:
+
+- PowerShell validation script:
+  `scripts/validate-rest-endpoint-with-apic-ruleset.ps1`
+- GitHub Actions workflow for CI validation:
+  `.github/workflows/validate-rest-endpoint-with-apic-ruleset.yml`
+
+What this validation does:
+
+1. Discovers an OpenAPI document from the target API base URL using common OpenAPI/Swagger endpoint patterns.
+2. Creates temporary API entities in Azure API Center.
+3. Imports the discovered OpenAPI specification.
+4. Triggers and polls API Center analysis results for the configured analyzer.
+5. Detects and records error/critical violations in the report.
+6. Cleans up the temporary API entities.
+
 ## Related projects
 
 - SalesPOC UI: https://github.com/csdmichael/SalesPOC.UI
