@@ -7,7 +7,7 @@ on:
         description: MCP server URL to test
         required: true
         type: string
-        default: https://apim-poc-my.azure-api.net/sales-api-mcp/mcp
+        default: https://apim-poc-my.azure-api.net/cosmos/mcp
       apim_subscription_key:
         description: Optional APIM subscription key (required for protected endpoints)
         required: false
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      MCP_BASE_URL: ${{ inputs.mcp_url || 'https://apim-poc-my.azure-api.net/sales-api-mcp/mcp' }}
+      MCP_BASE_URL: ${{ inputs.mcp_url || 'https://apim-poc-my.azure-api.net/cosmos/mcp' }}
       APIM_SUBSCRIPTION_KEY: ${{ inputs.apim_subscription_key || '' }}
 
     steps:
