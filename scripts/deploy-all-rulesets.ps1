@@ -50,6 +50,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$ApiVersion = "2024-03-01"
+
 if (-not (Test-Path $RulesetsRoot)) {
     throw "Rulesets root directory not found: $RulesetsRoot"
 }
@@ -59,6 +61,21 @@ $deploySingleScript = Join-Path $scriptDir "deploy-ruleset.ps1"
 
 if (-not (Test-Path $deploySingleScript)) {
     throw "deploy-ruleset.ps1 not found at: $deploySingleScript"
+}
+
+# ── Detect service SKU (best effort) ────────────────────────────────────────
+
+$serviceSku = $null
+try {
+    $serviceUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiCenter/services/$ServiceName`?api-version=$ApiVersion"
+    $serviceJson = az rest --method GET --url $serviceUrl -o json 2>$null
+    if ($LASTEXITCODE -eq 0 -and $serviceJson) {
+        $serviceObj = $serviceJson | ConvertFrom-Json
+        $serviceSku = $serviceObj.sku.name
+        Write-Host "Detected API Center SKU: $serviceSku" -ForegroundColor Cyan
+    }
+} catch {
+    Write-Warning "Could not detect API Center SKU. Proceeding without tier-based pre-filter."
 }
 
 # ── Discover ruleset directories ─────────────────────────────────────────────
@@ -91,6 +108,10 @@ if ($rulesetDirs.Count -eq 0) {
     exit 0
 }
 
+if (($serviceSku -eq "Free") -and (-not $ApiType) -and ($rulesetDirs.Count -gt 1)) {
+    Write-Warning "API Center is on Free tier (max 1 analyzer config). Only the first discovered ruleset will be deployed; remaining rulesets will be skipped."
+}
+
 Write-Host "Found $($rulesetDirs.Count) ruleset(s) to deploy:" -ForegroundColor Cyan
 $rulesetDirs | ForEach-Object { Write-Host "  - $($_.Name)" }
 Write-Host ""
@@ -99,6 +120,9 @@ Write-Host ""
 
 $failed = @()
 $succeeded = @()
+$skipped = @()
+
+$freeTierFirstDeployed = $false
 
 foreach ($dir in $rulesetDirs) {
     $configName = $dir.Name
@@ -108,6 +132,13 @@ foreach ($dir in $rulesetDirs) {
         if ($cfgContent -match '(?m)^analyzerConfigName:\s*(\S+)') {
             $configName = $Matches[1].Trim()
         }
+    }
+
+    if (($serviceSku -eq "Free") -and (-not $ApiType) -and $freeTierFirstDeployed) {
+        $skipped += $configName
+        Write-Warning "[$configName] Skipped: Free tier allows only one analyzer config deployment when no apiType filter is set."
+        Write-Host ""
+        continue
     }
 
     Write-Host "========================================" -ForegroundColor Cyan
@@ -129,11 +160,20 @@ foreach ($dir in $rulesetDirs) {
         & $deploySingleScript @deployParams
 
         $succeeded += $configName
+        if (($serviceSku -eq "Free") -and (-not $ApiType)) {
+            $freeTierFirstDeployed = $true
+        }
         Write-Host "[$configName] Deployed successfully.`n" -ForegroundColor Green
     }
     catch {
-        $failed += $configName
-        Write-Warning "[$configName] Deployment failed: $_"
+        $errorText = $_.ToString()
+        if ($errorText -match "Invalid SKU upgrade path|max analyzer config|maximum number of analyzer|exceeded|limit") {
+            $skipped += $configName
+            Write-Warning "[$configName] Skipped due to service tier capacity: $errorText"
+        } else {
+            $failed += $configName
+            Write-Warning "[$configName] Deployment failed: $errorText"
+        }
         Write-Host ""
     }
 }
@@ -144,6 +184,9 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Deployment Summary" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Succeeded: $($succeeded.Count) - $($succeeded -join ', ')" -ForegroundColor Green
+if ($skipped.Count -gt 0) {
+    Write-Host "  Skipped:   $($skipped.Count) - $($skipped -join ', ')" -ForegroundColor Yellow
+}
 if ($failed.Count -gt 0) {
     Write-Host "  Failed:    $($failed.Count) - $($failed -join ', ')" -ForegroundColor Red
     throw "$($failed.Count) ruleset deployment(s) failed."
