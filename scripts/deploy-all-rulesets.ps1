@@ -63,17 +63,17 @@ if (-not (Test-Path $deploySingleScript)) {
 
 # ── Discover ruleset directories ─────────────────────────────────────────────
 
-$rulesetDirs = Get-ChildItem -Path $RulesetsRoot -Directory | Where-Object {
+$rulesetDirs = @(Get-ChildItem -Path $RulesetsRoot -Directory | Where-Object {
     (Test-Path (Join-Path $_.FullName "ruleset.yaml")) -or
     (Test-Path (Join-Path $_.FullName "ruleset.yml"))
-}
+})
 
 # ── Filter by API type (if specified) ────────────────────────────────────────
 
 if ($ApiType) {
     Write-Host "Filtering rulesets for API type: $ApiType" -ForegroundColor Cyan
 
-    $rulesetDirs = $rulesetDirs | Where-Object {
+    $rulesetDirs = @($rulesetDirs | Where-Object {
         $cfgPath = Join-Path $_.FullName "config.yaml"
         if (Test-Path $cfgPath) {
             $cfgContent = Get-Content $cfgPath -Raw
@@ -82,7 +82,7 @@ if ($ApiType) {
             }
         }
         return ($ApiType -eq "rest")
-    }
+    })
 }
 
 if ($rulesetDirs.Count -eq 0) {
